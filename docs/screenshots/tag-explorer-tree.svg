@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
+  <title id="title">Tag Explorer tree example</title>
+  <desc id="desc">A Tag Explorer side pane showing tag-folders, nested tags, notes, and untagged notes.</desc>
+  <rect width="960" height="640" fill="#1f1f1f"/>
+  <rect x="40" y="32" width="360" height="576" rx="8" fill="#262626" stroke="#3a3a3a"/>
+  <rect x="40" y="32" width="360" height="56" rx="8" fill="#303030"/>
+  <text x="76" y="68" font-family="Inter, Arial, sans-serif" font-size="20" fill="#d6d6d6">Tag Explorer</text>
+  <g font-family="Inter, Arial, sans-serif" font-size="22" fill="#d6d6d6">
+    <text x="76" y="138">▾</text>
+    <text x="108" y="138">Area</text>
+    <text x="356" y="138" fill="#858585" text-anchor="end">6</text>
+    <text x="104" y="184">▾</text>
+    <text x="136" y="184">example</text>
+    <text x="356" y="184" fill="#858585" text-anchor="end">4</text>
+    <text x="132" y="230">▸</text>
+    <text x="164" y="230">project</text>
+    <text x="356" y="230" fill="#858585" text-anchor="end">2</text>
+    <text x="164" y="276" fill="#c9d7ee">Project notes</text>
+    <text x="164" y="322" fill="#c9d7ee">Review checklist</text>
+    <text x="76" y="384">▸</text>
+    <text x="108" y="384">Inbox</text>
+    <text x="356" y="384" fill="#858585" text-anchor="end">3</text>
+    <text x="76" y="446">▾</text>
+    <text x="108" y="446">Untagged</text>
+    <text x="356" y="446" fill="#858585" text-anchor="end">2</text>
+    <text x="136" y="492" fill="#c9d7ee">Draft note</text>
+    <text x="136" y="538" fill="#c9d7ee">Inbox item</text>
+  </g>
+  <g stroke="#454545" stroke-width="1">
+    <path d="M120 154v184"/>
+    <path d="M148 200v138"/>
+    <path d="M120 462v88"/>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" font-size="24" fill="#f0f0f0">
+    <text x="448" y="96">Tag-based explorer</text>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" font-size="18" fill="#bdbdbd">
+    <text x="448" y="144">Tag-folders and real tags share one tree</text>
+    <text x="448" y="178">Untagged notes can be organized by drag-and-drop</text>
+    <text x="448" y="212">Preview changes before applying them</text>
+  </g>
+</svg>

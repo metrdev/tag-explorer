@@ -1,0 +1,199 @@
+.tag-explorer-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  color: var(--nav-item-color);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+}
+
+.tag-explorer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--size-2-1);
+  padding: var(--size-4-1) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tag-explorer-filter {
+  margin: var(--size-4-2);
+  width: calc(100% - (var(--size-4-2) * 2));
+  height: var(--input-height);
+}
+
+.tag-explorer-icon-button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--icon-color);
+  line-height: 1;
+  border-radius: var(--radius-s);
+}
+
+.tag-explorer-icon-button svg {
+  display: block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.tag-explorer-icon-button.is-active,
+.tag-explorer-icon-button:hover {
+  color: var(--icon-color-hover);
+  background: var(--background-modifier-hover);
+}
+
+.tag-explorer-tree {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--size-2-1) 0;
+}
+
+.tag-explorer-item {
+  min-width: 0;
+}
+
+.tag-explorer-children {
+  margin-left: 17px;
+  padding-left: 10px;
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+.tag-explorer-row {
+  display: grid;
+  grid-template-columns: 18px 18px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 24px;
+  gap: var(--size-2-1);
+  padding: 0 var(--size-4-2) 0 var(--size-2-1);
+  color: var(--nav-item-color);
+  cursor: default;
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-normal);
+  user-select: none;
+}
+
+.tag-explorer-note-row {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+}
+
+.tag-explorer-tag-row.is-tag-folder {
+  color: var(--text-muted);
+}
+
+.tag-explorer-untagged {
+  margin-top: var(--size-2-2);
+}
+
+.tag-explorer-row:hover,
+.tag-explorer-row:active {
+  color: var(--nav-item-color-hover);
+  background: var(--nav-item-background-hover);
+}
+
+.tag-explorer-row.is-selected {
+  color: var(--nav-item-color-active);
+  background: var(--nav-item-background-active);
+}
+
+.tag-explorer-tree.is-drop-target,
+.tag-explorer-row.is-drop-target {
+  background: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+
+.tag-explorer-row.is-dragging {
+  opacity: 0.5;
+}
+
+.tag-explorer-note-row {
+  color: var(--nav-item-color);
+}
+
+.tag-explorer-chevron,
+.tag-explorer-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.tag-explorer-chevron-empty {
+  visibility: hidden;
+}
+
+.tag-explorer-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-explorer-rename-input {
+  min-width: 0;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  padding: 0 var(--size-2-2);
+  font: inherit;
+}
+
+.tag-explorer-count {
+  min-width: 2ch;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: right;
+}
+
+.tag-explorer-empty {
+  padding: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  min-height: 48px;
+}
+
+.tag-explorer-preview-modal p {
+  margin: var(--size-4-2) 0;
+}
+
+.tag-explorer-preview-list {
+  max-height: 260px;
+  overflow: auto;
+  margin: var(--size-4-2) 0;
+  padding-inline-start: var(--size-4-6);
+}
+
+.tag-explorer-modal-actions .setting-item {
+  border: 0;
+  padding-inline: 0;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .tag-explorer-toolbar {
+    gap: var(--size-2-2);
+    padding: var(--size-2-2) var(--size-4-2);
+  }
+
+  .tag-explorer-icon-button {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .tag-explorer-row {
+    min-height: 38px;
+    padding-right: var(--size-4-3);
+  }
+
+  .tag-explorer-chevron,
+  .tag-explorer-row-icon {
+    min-width: 22px;
+    min-height: 22px;
+  }
+}

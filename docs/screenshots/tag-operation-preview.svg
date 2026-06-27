@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
+  <title id="title">Tag Explorer preview modal example</title>
+  <desc id="desc">A preview dialog showing affected files before applying a tag operation.</desc>
+  <rect width="960" height="640" fill="#1f1f1f"/>
+  <rect x="210" y="88" width="540" height="464" rx="10" fill="#2a2a2a" stroke="#4a4a4a"/>
+  <text x="252" y="150" font-family="Inter, Arial, sans-serif" font-size="26" fill="#eeeeee">Move tag</text>
+  <text x="252" y="198" font-family="Inter, Arial, sans-serif" font-size="18" fill="#cfcfcf">#Area/example → #Area/archive</text>
+  <rect x="252" y="230" width="456" height="196" rx="6" fill="#232323" stroke="#3d3d3d"/>
+  <g font-family="Inter, Arial, sans-serif" font-size="17" fill="#d8d8d8">
+    <text x="280" y="274">example/project/Project notes.md</text>
+    <text x="280" y="314">example/project/Review checklist.md</text>
+    <text x="280" y="354">example/project/Inbox item.md</text>
+    <text x="280" y="394" fill="#a8a8a8">3 files affected</text>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" font-size="16">
+    <rect x="500" y="466" width="86" height="42" rx="6" fill="#3a3a3a"/>
+    <text x="543" y="493" fill="#f0f0f0" text-anchor="middle">Cancel</text>
+    <rect x="604" y="466" width="104" height="42" rx="6" fill="#6c8cff"/>
+    <text x="656" y="493" fill="#ffffff" text-anchor="middle">Apply</text>
+  </g>
+</svg>
