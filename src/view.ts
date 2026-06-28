@@ -23,16 +23,52 @@ import {
   type RenderableTagNode,
   type TagTreeOptions,
 } from "./tag-index";
+import {
+  actionForTouchMenuTimer,
+  actionForTouchMove,
+  actionForTouchSelectTimer,
+  touchGestureDistance,
+} from "./touch-gesture";
 import { VIEW_TYPE_TAG_EXPLORER } from "./types";
 import type { IndexedNote } from "./types";
 
 const DRAG_MIME = "application/x-tag-explorer";
+const TOUCH_SELECT_DELAY_MS = 320;
+const TOUCH_MENU_DELAY_MS = 650;
+const TOUCH_DRAG_THRESHOLD_PX = 9;
+const TOUCH_AUTO_SCROLL_EDGE_PX = 48;
+const TOUCH_AUTO_SCROLL_STEP_PX = 14;
+
+interface TouchGestureState {
+  pointerId: number;
+  element: HTMLElement;
+  item: SelectionItem;
+  payload: SingleDragPayload;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  selectTimer: number;
+  menuTimer: number;
+  selected: boolean;
+  dragging: boolean;
+  menuOpened: boolean;
+  originalTouchAction: string;
+}
+
+interface TouchDragState {
+  payload: DragPayload;
+  sourceEl: HTMLElement;
+  previewEl: HTMLElement;
+  currentDropEl: HTMLElement | null;
+}
 
 export class TagExplorerView extends ItemView {
   private filter = "";
   private searchVisible = false;
   private treeContainerEl: HTMLElement | null = null;
-  private touchMenuTimer: number | null = null;
+  private touchGesture: TouchGestureState | null = null;
+  private touchDrag: TouchDragState | null = null;
   private selectedKeys = new Set<string>();
   private lastSelectedKey: string | null = null;
   private visibleSelectionItems: SelectionItem[] = [];
@@ -190,11 +226,13 @@ export class TagExplorerView extends ItemView {
     rowEl.createSpan({ cls: "tag-explorer-label", text: t("tree.untagged") });
     rowEl.createSpan({ cls: "tag-explorer-count", text: String(notes.length) });
     rowEl.addEventListener("click", (event) => {
+      if (this.consumeSuppressedClick(rowEl, event)) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       void this.toggleTag("__untagged__");
     });
-    this.attachLongPressContextMenu(rowEl);
 
     if (!isExpanded) {
       return;
@@ -239,6 +277,9 @@ export class TagExplorerView extends ItemView {
     });
 
     rowEl.addEventListener("click", (event) => {
+      if (this.consumeSuppressedClick(rowEl, event)) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       const selectionOnly = this.handleSelectionClick(event, selectionItem);
@@ -249,9 +290,10 @@ export class TagExplorerView extends ItemView {
     });
     rowEl.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+      this.selectItemForContextMenu(selectionItem);
       this.openTagMenu(event, renderable);
     });
-    this.attachLongPressContextMenu(rowEl);
+    this.attachTouchInteraction(rowEl, selectionItem, { type: "tag", path: node.path });
 
     if (!isExpanded) {
       return;
@@ -283,6 +325,9 @@ export class TagExplorerView extends ItemView {
     this.renderNoteLabelOrEditor(rowEl, note, selectionItem.key);
 
     rowEl.addEventListener("click", (event) => {
+      if (this.consumeSuppressedClick(rowEl, event)) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       const selectionOnly = this.handleSelectionClick(event, selectionItem);
@@ -302,9 +347,10 @@ export class TagExplorerView extends ItemView {
     });
     rowEl.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+      this.selectItemForContextMenu(selectionItem);
       this.openNoteMenu(event, note, sourceTag);
     });
-    this.attachLongPressContextMenu(rowEl);
+    this.attachTouchInteraction(rowEl, selectionItem, { type: "note", filePath: note.path, sourceTag });
   }
 
   private renderUntaggedNoteRow(parentEl: HTMLElement, note: IndexedNote): void {
@@ -323,6 +369,9 @@ export class TagExplorerView extends ItemView {
     this.renderNoteLabelOrEditor(rowEl, note, selectionItem.key);
 
     rowEl.addEventListener("click", (event) => {
+      if (this.consumeSuppressedClick(rowEl, event)) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       const selectionOnly = this.handleSelectionClick(event, selectionItem);
@@ -334,9 +383,10 @@ export class TagExplorerView extends ItemView {
     });
     rowEl.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+      this.selectItemForContextMenu(selectionItem);
       this.openNoteMenu(event, note, null);
     });
-    this.attachLongPressContextMenu(rowEl);
+    this.attachTouchInteraction(rowEl, selectionItem, { type: "untagged-note", filePath: note.path });
   }
 
   private renderNoteLabelOrEditor(rowEl: HTMLElement, note: IndexedNote, selectionKeyValue: string): void {
@@ -523,6 +573,40 @@ export class TagExplorerView extends ItemView {
     return selectionOnly;
   }
 
+  private selectItemForContextMenu(item: SelectionItem): void {
+    if (this.selectedKeys.has(item.key)) {
+      this.lastSelectedKey = item.key;
+      return;
+    }
+    this.selectedKeys = new Set([item.key]);
+    this.lastSelectedKey = item.key;
+    this.syncSelectionClasses();
+  }
+
+  private selectItemForTouch(item: SelectionItem): void {
+    this.selectItemForContextMenu(item);
+    this.treeContainerEl?.focus();
+  }
+
+  private suppressNextClick(element: HTMLElement): void {
+    element.dataset.suppressClick = "true";
+    window.setTimeout(() => {
+      if (element.dataset.suppressClick === "true") {
+        delete element.dataset.suppressClick;
+      }
+    }, 700);
+  }
+
+  private consumeSuppressedClick(element: HTMLElement, event: MouseEvent): boolean {
+    if (element.dataset.suppressClick !== "true") {
+      return false;
+    }
+    delete element.dataset.suppressClick;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
   private pruneSelectionToVisibleItems(): void {
     const visibleKeys = new Set(this.visibleSelectionItems.map((item) => item.key));
     let changed = false;
@@ -695,13 +779,13 @@ export class TagExplorerView extends ItemView {
       item
         .setTitle(t("menu.renameTag"))
         .setIcon("pencil")
-        .onClick(() => this.plugin.renameTag(tagPath));
+        .onClick(() => this.plugin.renameTag(tagPath, { confirm: false }));
     });
     menu.addItem((item) => {
       item
         .setTitle(t("menu.moveTagFolder"))
         .setIcon("folder-input")
-        .onClick(() => this.plugin.moveTag(tagPath));
+        .onClick(() => this.plugin.moveTag(tagPath, { confirm: false }));
     });
     menu.addSeparator();
     menu.addItem((item) => {
@@ -827,9 +911,23 @@ export class TagExplorerView extends ItemView {
         .setIcon(sourceTag ? "folder-input" : "tag")
         .onClick(() => {
           if (sourceTag) {
-            void this.plugin.chooseAndMoveNoteToTag(note.path, sourceTag);
+            const noteTargets = selectedNotes
+              .filter((payload): payload is { type: "note"; filePath: string; sourceTag: string } =>
+                payload.type === "note")
+              .map((payload) => ({ filePath: payload.filePath, sourceTag: payload.sourceTag }));
+            void this.plugin.chooseAndMoveNotesToTag(
+              noteTargets.length > 0 ? noteTargets : [{ filePath: note.path, sourceTag }],
+              { confirm: false },
+            );
           } else {
-            void this.plugin.chooseAndAddUntaggedNoteToTag(note.path);
+            const filePaths = selectedNotes
+              .filter((payload): payload is { type: "untagged-note"; filePath: string } =>
+                payload.type === "untagged-note")
+              .map((payload) => payload.filePath);
+            void this.plugin.chooseAndAddUntaggedNotesToTag(
+              filePaths.length > 0 ? filePaths : [note.path],
+              { confirm: false },
+            );
           }
         });
     });
@@ -970,36 +1068,250 @@ export class TagExplorerView extends ItemView {
     return payload.filePath;
   }
 
-  private attachLongPressContextMenu(element: HTMLElement): void {
-    const clearTimer = () => {
-      if (this.touchMenuTimer !== null) {
-        window.clearTimeout(this.touchMenuTimer);
-        this.touchMenuTimer = null;
-      }
-    };
-
-    element.addEventListener("touchstart", (event) => {
-      clearTimer();
-      if (event.touches.length !== 1) {
+  private attachTouchInteraction(element: HTMLElement, item: SelectionItem, payload: SingleDragPayload): void {
+    element.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch" || !event.isPrimary) {
         return;
       }
-      const touch = event.touches[0];
-      this.touchMenuTimer = window.setTimeout(() => {
-        this.touchMenuTimer = null;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      this.cancelTouchGesture();
+      const gesture: TouchGestureState = {
+        pointerId: event.pointerId,
+        element,
+        item,
+        payload,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        selectTimer: 0,
+        menuTimer: 0,
+        selected: false,
+        dragging: false,
+        menuOpened: false,
+        originalTouchAction: element.style.touchAction,
+      };
+      element.style.touchAction = "pan-y";
+      element.setPointerCapture(event.pointerId);
+
+      gesture.selectTimer = window.setTimeout(() => {
+        if (this.touchGesture !== gesture || actionForTouchSelectTimer(gesture) !== "select") {
+          return;
+        }
+        gesture.selected = true;
+        this.selectItemForTouch(item);
+        this.suppressNextClick(element);
+        this.vibrateTouchSelection();
+      }, TOUCH_SELECT_DELAY_MS);
+
+      gesture.menuTimer = window.setTimeout(() => {
+        if (this.touchGesture !== gesture || actionForTouchMenuTimer(gesture) !== "menu") {
+          return;
+        }
+        if (!gesture.selected) {
+          gesture.selected = true;
+          this.selectItemForTouch(item);
+          this.vibrateTouchSelection();
+        }
+        gesture.menuOpened = true;
+        this.suppressNextClick(element);
         element.dispatchEvent(new MouseEvent("contextmenu", {
           bubbles: true,
           cancelable: true,
-          clientX: touch.clientX,
-          clientY: touch.clientY,
+          clientX: gesture.lastX,
+          clientY: gesture.lastY,
         }));
-      }, 550);
-    }, { passive: true });
-    element.addEventListener("touchend", clearTimer, { passive: true });
-    element.addEventListener("touchcancel", clearTimer, { passive: true });
-    element.addEventListener("touchmove", clearTimer, { passive: true });
+      }, TOUCH_MENU_DELAY_MS);
+
+      this.touchGesture = gesture;
+    });
+
+    element.addEventListener("pointermove", (event) => {
+      const gesture = this.touchGesture;
+      if (!gesture || gesture.pointerId !== event.pointerId) {
+        return;
+      }
+      gesture.lastX = event.clientX;
+      gesture.lastY = event.clientY;
+      const action = actionForTouchMove(
+        gesture,
+        touchGestureDistance(gesture.startX, gesture.startY, event.clientX, event.clientY),
+        { movementThreshold: TOUCH_DRAG_THRESHOLD_PX },
+      );
+      if (action === "cancel") {
+        this.cancelTouchGesture();
+        return;
+      }
+      if (gesture.selected) {
+        event.preventDefault();
+      }
+      if (action === "drag") {
+        window.clearTimeout(gesture.menuTimer);
+        gesture.dragging = true;
+        this.startTouchDrag(gesture);
+      }
+      if (gesture.dragging) {
+        this.updateTouchDrag(event.clientX, event.clientY);
+      }
+    });
+
+    element.addEventListener("pointerup", (event) => {
+      const gesture = this.touchGesture;
+      if (!gesture || gesture.pointerId !== event.pointerId) {
+        return;
+      }
+      if (gesture.selected || gesture.dragging || gesture.menuOpened) {
+        event.preventDefault();
+      }
+      if (gesture.dragging) {
+        void this.finishTouchDrag(event.clientX, event.clientY);
+      }
+      this.cancelTouchGesture();
+    });
+
+    element.addEventListener("pointercancel", (event) => {
+      const gesture = this.touchGesture;
+      if (!gesture || gesture.pointerId !== event.pointerId) {
+        return;
+      }
+      this.cancelTouchGesture();
+    });
+  }
+
+  private startTouchDrag(gesture: TouchGestureState): void {
+    if (this.touchDrag) {
+      this.clearTouchDrag();
+    }
+    const dragPayload = this.dragPayloadForSelection(gesture.payload);
+    const previewEl = document.body.createDiv({
+      cls: "tag-explorer-touch-drag-preview",
+      text: this.dragPayloadLabel(dragPayload),
+    });
+    this.currentDragPayload = dragPayload;
+    gesture.element.addClass("is-dragging");
+    this.touchDrag = {
+      payload: dragPayload,
+      sourceEl: gesture.element,
+      previewEl,
+      currentDropEl: null,
+    };
+    this.suppressNextClick(gesture.element);
+    this.updateTouchDrag(gesture.lastX, gesture.lastY);
+  }
+
+  private updateTouchDrag(clientX: number, clientY: number): void {
+    const drag = this.touchDrag;
+    if (!drag) {
+      return;
+    }
+    drag.previewEl.style.transform = `translate(${clientX + 12}px, ${clientY + 12}px)`;
+    this.autoScrollTouchDrag(clientY);
+
+    const dropEl = this.touchDropTargetAt(clientX, clientY, drag.payload);
+    if (drag.currentDropEl && drag.currentDropEl !== dropEl) {
+      drag.currentDropEl.removeClass("is-drop-target");
+    }
+    drag.currentDropEl = dropEl;
+    dropEl?.addClass("is-drop-target");
+  }
+
+  private async finishTouchDrag(clientX: number, clientY: number): Promise<void> {
+    const drag = this.touchDrag;
+    if (!drag) {
+      return;
+    }
+    const dropEl = this.touchDropTargetAt(clientX, clientY, drag.payload);
+    const targetTag = dropEl?.dataset.tagExplorerDropTargetTag;
+    const isRoot = dropEl?.dataset.tagExplorerDropTargetRoot === "true";
+    this.clearTouchDrag();
+    if (dropEl && targetTag !== undefined && this.canDrop(drag.payload, targetTag, isRoot)) {
+      await this.handleDrop(drag.payload, targetTag, isRoot);
+    }
+  }
+
+  private clearTouchDrag(): void {
+    if (!this.touchDrag) {
+      return;
+    }
+    this.touchDrag.currentDropEl?.removeClass("is-drop-target");
+    this.touchDrag.sourceEl.removeClass("is-dragging");
+    this.touchDrag.previewEl.remove();
+    this.touchDrag = null;
+    this.currentDragPayload = null;
+  }
+
+  private cancelTouchGesture(): void {
+    const gesture = this.touchGesture;
+    if (!gesture) {
+      return;
+    }
+    window.clearTimeout(gesture.selectTimer);
+    window.clearTimeout(gesture.menuTimer);
+    if (gesture.element.hasPointerCapture(gesture.pointerId)) {
+      gesture.element.releasePointerCapture(gesture.pointerId);
+    }
+    gesture.element.style.touchAction = gesture.originalTouchAction;
+    if (!gesture.dragging) {
+      this.clearTouchDrag();
+    }
+    this.touchGesture = null;
+  }
+
+  private touchDropTargetAt(clientX: number, clientY: number, payload: DragPayload): HTMLElement | null {
+    const hit = document.elementFromPoint(clientX, clientY);
+    if (!(hit instanceof HTMLElement)) {
+      return null;
+    }
+
+    const rowEl = hit.closest<HTMLElement>(".tag-explorer-row");
+    const candidate = rowEl?.dataset.tagExplorerDropTarget === "true"
+      ? rowEl
+      : rowEl
+        ? null
+        : hit.closest<HTMLElement>("[data-tag-explorer-drop-target='true']");
+    if (!candidate) {
+      return null;
+    }
+
+    const targetTag = candidate.dataset.tagExplorerDropTargetTag;
+    const isRoot = candidate.dataset.tagExplorerDropTargetRoot === "true";
+    return targetTag !== undefined && this.canDrop(payload, targetTag, isRoot) ? candidate : null;
+  }
+
+  private autoScrollTouchDrag(clientY: number): void {
+    if (!this.treeContainerEl) {
+      return;
+    }
+    const rect = this.treeContainerEl.getBoundingClientRect();
+    if (clientY < rect.top + TOUCH_AUTO_SCROLL_EDGE_PX) {
+      this.treeContainerEl.scrollTop -= TOUCH_AUTO_SCROLL_STEP_PX;
+    } else if (clientY > rect.bottom - TOUCH_AUTO_SCROLL_EDGE_PX) {
+      this.treeContainerEl.scrollTop += TOUCH_AUTO_SCROLL_STEP_PX;
+    }
+  }
+
+  private vibrateTouchSelection(): void {
+    try {
+      navigator.vibrate?.(10);
+    } catch {
+      // Haptics are best-effort and unavailable in some Obsidian mobile webviews.
+    }
   }
 
   private attachDropTarget(element: HTMLElement, targetTag: string, isRoot: boolean): void {
+    element.dataset.tagExplorerDropTarget = "true";
+    element.dataset.tagExplorerDropTargetTag = targetTag;
+    element.dataset.tagExplorerDropTargetRoot = String(isRoot);
+
     element.addEventListener("dragover", (event) => {
       const payload = this.readDragPayload(event);
       if (!payload || !this.canDrop(payload, targetTag, isRoot)) {

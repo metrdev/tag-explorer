@@ -233,9 +233,12 @@ class ParentTagSuggestModal extends SuggestModal<string> {
 
   onClose(): void {
     super.onClose();
-    if (!this.resolved) {
-      this.resolve(null);
-    }
+    window.setTimeout(() => {
+      if (!this.resolved) {
+        this.resolved = true;
+        this.resolve(null);
+      }
+    }, 0);
   }
 }
 

@@ -113,6 +113,26 @@
   opacity: 0.5;
 }
 
+.tag-explorer-touch-drag-preview {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  max-width: min(260px, calc(100vw - 24px));
+  padding: var(--size-2-2) var(--size-4-2);
+  border-radius: var(--radius-s);
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+  box-shadow: var(--shadow-s);
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+}
+
 .tag-explorer-note-row {
   color: var(--nav-item-color);
 }

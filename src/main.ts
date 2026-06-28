@@ -14,6 +14,7 @@ import { TAG_EXPLORER_ICON_ID, TAG_EXPLORER_ICON_SVG } from "./icons";
 import { chooseParentTag, confirmDeleteNotes, confirmTagOperation, promptForText } from "./modals";
 import { t, setLanguage } from "./i18n";
 import { buildRenameNoteTarget } from "./note-actions";
+import { shouldConfirmOperation, type OperationOptions } from "./operation-confirmation";
 import { TagExplorerSettingTab } from "./settings-tab";
 import {
   canDeleteTagFolderSubtree,
@@ -345,7 +346,7 @@ export default class TagExplorerPlugin extends Plugin {
     return deletedPaths;
   }
 
-  async renameTag(tagPath: string): Promise<void> {
+  async renameTag(tagPath: string, options: OperationOptions = {}): Promise<void> {
     const input = await promptForText(
       this.app,
       t("modal.renameTag.title"),
@@ -363,10 +364,10 @@ export default class TagExplorerPlugin extends Plugin {
       return;
     }
 
-    await this.previewAndApplyTagOperation(tagPath, targetPath, t("modal.renameTag.title"));
+    await this.previewAndApplyTagOperation(tagPath, targetPath, t("modal.renameTag.title"), options);
   }
 
-  async moveTag(tagPath: string): Promise<void> {
+  async moveTag(tagPath: string, options: OperationOptions = {}): Promise<void> {
     const parent = await chooseParentTag(
       this.app,
       this.getAllTagPaths().filter((tag) => tag !== tagPath && !tag.startsWith(`${tagPath}/`)),
@@ -382,23 +383,42 @@ export default class TagExplorerPlugin extends Plugin {
       return;
     }
 
-    await this.previewAndApplyTagOperation(tagPath, targetPath, t("menu.moveTagFolder"));
+    await this.previewAndApplyTagOperation(tagPath, targetPath, t("menu.moveTagFolder"), options);
   }
 
-  async chooseAndMoveNoteToTag(filePath: string, sourceTag: string): Promise<void> {
+  async chooseAndMoveNoteToTag(filePath: string, sourceTag: string, options: OperationOptions = {}): Promise<void> {
+    await this.chooseAndMoveNotesToTag([{ filePath, sourceTag }], options);
+  }
+
+  async chooseAndMoveNotesToTag(
+    notes: Array<{ filePath: string; sourceTag: string }>,
+    options: OperationOptions = {},
+  ): Promise<void> {
+    if (notes.length === 0) {
+      new Notice(t("notice.fileUnavailable"));
+      return;
+    }
     const targetTag = await chooseParentTag(this.app, this.getAllTagPaths(), false);
     if (targetTag === null) {
       return;
     }
-    await this.moveNoteToTag(filePath, sourceTag, targetTag);
+    await this.moveNotesToTag(notes, targetTag, options);
   }
 
-  async chooseAndAddUntaggedNoteToTag(filePath: string): Promise<void> {
+  async chooseAndAddUntaggedNoteToTag(filePath: string, options: OperationOptions = {}): Promise<void> {
+    await this.chooseAndAddUntaggedNotesToTag([filePath], options);
+  }
+
+  async chooseAndAddUntaggedNotesToTag(filePaths: string[], options: OperationOptions = {}): Promise<void> {
+    if (filePaths.length === 0) {
+      new Notice(t("notice.fileUnavailable"));
+      return;
+    }
     const targetTag = await chooseParentTag(this.app, this.getAllTagPaths(), false);
     if (targetTag === null) {
       return;
     }
-    await this.addUntaggedNoteToTag(filePath, targetTag);
+    await this.addUntaggedNotesToTag(filePaths, targetTag, options);
   }
 
   async createTagFolder(parentPath: string): Promise<void> {
@@ -457,11 +477,20 @@ export default class TagExplorerPlugin extends Plugin {
     await this.saveSettingsAndRefresh();
   }
 
-  async moveNoteToTag(filePath: string, sourceTag: string, targetTag: string): Promise<void> {
-    await this.moveNotesToTag([{ filePath, sourceTag }], targetTag);
+  async moveNoteToTag(
+    filePath: string,
+    sourceTag: string,
+    targetTag: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
+    await this.moveNotesToTag([{ filePath, sourceTag }], targetTag, options);
   }
 
-  async moveNotesToTag(notes: Array<{ filePath: string; sourceTag: string }>, targetTag: string): Promise<void> {
+  async moveNotesToTag(
+    notes: Array<{ filePath: string; sourceTag: string }>,
+    targetTag: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
     const plans: TagOperationPlan[] = [];
     const sourceTags = new Map<string, Set<string>>();
     for (const note of notes) {
@@ -485,13 +514,15 @@ export default class TagExplorerPlugin extends Plugin {
       return;
     }
 
-    const confirmed = await confirmTagOperation(
-      this.app,
-      t("modal.moveNote.title"),
-      this.createBatchPreviewPlan(plans, t("modal.moveNote.title")),
-    );
-    if (!confirmed) {
-      return;
+    if (shouldConfirmOperation(options)) {
+      const confirmed = await confirmTagOperation(
+        this.app,
+        t("modal.moveNote.title"),
+        this.createBatchPreviewPlan(plans, t("modal.moveNote.title")),
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     const stats = await this.applyTagOperationBatch(plans);
@@ -500,11 +531,19 @@ export default class TagExplorerPlugin extends Plugin {
     this.rebuildViews();
   }
 
-  async addUntaggedNoteToTag(filePath: string, targetTag: string): Promise<void> {
-    await this.addUntaggedNotesToTag([filePath], targetTag);
+  async addUntaggedNoteToTag(
+    filePath: string,
+    targetTag: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
+    await this.addUntaggedNotesToTag([filePath], targetTag, options);
   }
 
-  async addUntaggedNotesToTag(filePaths: string[], targetTag: string): Promise<void> {
+  async addUntaggedNotesToTag(
+    filePaths: string[],
+    targetTag: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
     const entries: TagOperationEntry[] = [];
     for (const filePath of Array.from(new Set(filePaths))) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -522,17 +561,27 @@ export default class TagExplorerPlugin extends Plugin {
       return;
     }
 
-    const preview = createOperationPlan("", targetTag, "exact", entries, [], [], t("modal.addUntagged.title"));
-    const confirmed = await confirmTagOperation(this.app, t("modal.addUntagged.title"), preview);
-    if (!confirmed) {
-      return;
+    if (shouldConfirmOperation(options)) {
+      const preview = createOperationPlan("", targetTag, "exact", entries, [], [], t("modal.addUntagged.title"));
+      const confirmed = await confirmTagOperation(this.app, t("modal.addUntagged.title"), preview);
+      if (!confirmed) {
+        return;
+      }
     }
 
     const changedEntries: TagOperationEntry[] = [];
     for (const entry of entries) {
       const file = this.app.vault.getAbstractFileByPath(entry.path);
-      if (file instanceof TFile && await this.applyPropertyTagChange(file, targetTag, "add")) {
-        changedEntries.push(entry);
+      if (!(file instanceof TFile)) {
+        continue;
+      }
+      try {
+        if (await this.applyPropertyTagChange(file, targetTag, "add")) {
+          changedEntries.push(entry);
+        }
+      } catch (error) {
+        console.error("Tag Explorer could not add tag to note", error);
+        new Notice(t("notice.addTagFailed"));
       }
     }
 
@@ -567,11 +616,19 @@ export default class TagExplorerPlugin extends Plugin {
     return changed;
   }
 
-  async moveTagToParent(sourcePath: string, targetParentPath: string): Promise<void> {
-    await this.moveTagsToParent([sourcePath], targetParentPath);
+  async moveTagToParent(
+    sourcePath: string,
+    targetParentPath: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
+    await this.moveTagsToParent([sourcePath], targetParentPath, options);
   }
 
-  async moveTagsToParent(sourcePaths: string[], targetParentPath: string): Promise<void> {
+  async moveTagsToParent(
+    sourcePaths: string[],
+    targetParentPath: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
     const plans: TagOperationPlan[] = [];
     for (const sourcePath of normalizeTagMoveSources(sourcePaths)) {
       const targetPath = resolveMoveTarget(sourcePath, targetParentPath);
@@ -591,13 +648,15 @@ export default class TagExplorerPlugin extends Plugin {
       return;
     }
 
-    const confirmed = await confirmTagOperation(
-      this.app,
-      t("menu.moveTagFolder"),
-      this.createBatchPreviewPlan(plans, t("menu.moveTagFolder")),
-    );
-    if (!confirmed) {
-      return;
+    if (shouldConfirmOperation(options)) {
+      const confirmed = await confirmTagOperation(
+        this.app,
+        t("menu.moveTagFolder"),
+        this.createBatchPreviewPlan(plans, t("menu.moveTagFolder")),
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     const stats = await this.applyTagOperationBatch(plans);
@@ -684,16 +743,23 @@ export default class TagExplorerPlugin extends Plugin {
     }
   }
 
-  private async previewAndApplyTagOperation(oldPath: string, newPath: string, title: string): Promise<void> {
+  private async previewAndApplyTagOperation(
+    oldPath: string,
+    newPath: string,
+    title: string,
+    options: OperationOptions = {},
+  ): Promise<void> {
     const plan = this.buildTagOperationPlan(oldPath, newPath, "subtree");
     if (plan.entries.length === 0 && plan.tagFolderAdditions.length === 0 && plan.tagFolderRemovals.length === 0) {
       new Notice(t("notice.noMatchingTags"));
       return;
     }
 
-    const confirmed = await confirmTagOperation(this.app, title, plan);
-    if (!confirmed) {
-      return;
+    if (shouldConfirmOperation(options)) {
+      const confirmed = await confirmTagOperation(this.app, title, plan);
+      if (!confirmed) {
+        return;
+      }
     }
 
     const stats = await this.applyTagOperation(plan, false);
