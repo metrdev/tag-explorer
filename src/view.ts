@@ -53,7 +53,6 @@ interface TouchGestureState {
   selected: boolean;
   dragging: boolean;
   menuOpened: boolean;
-  originalTouchAction: string;
 }
 
 interface TouchDragState {
@@ -1098,9 +1097,8 @@ export class TagExplorerView extends ItemView {
         selected: false,
         dragging: false,
         menuOpened: false,
-        originalTouchAction: element.style.touchAction,
       };
-      element.style.touchAction = "pan-y";
+      element.addClass("is-touch-active");
       element.setPointerCapture(event.pointerId);
 
       gesture.selectTimer = window.setTimeout(() => {
@@ -1192,7 +1190,7 @@ export class TagExplorerView extends ItemView {
       this.clearTouchDrag();
     }
     const dragPayload = this.dragPayloadForSelection(gesture.payload);
-    const previewEl = document.body.createDiv({
+    const previewEl = activeDocument.body.createDiv({
       cls: "tag-explorer-touch-drag-preview",
       text: this.dragPayloadLabel(dragPayload),
     });
@@ -1259,7 +1257,7 @@ export class TagExplorerView extends ItemView {
     if (gesture.element.hasPointerCapture(gesture.pointerId)) {
       gesture.element.releasePointerCapture(gesture.pointerId);
     }
-    gesture.element.style.touchAction = gesture.originalTouchAction;
+    gesture.element.removeClass("is-touch-active");
     if (!gesture.dragging) {
       this.clearTouchDrag();
     }
@@ -1267,7 +1265,7 @@ export class TagExplorerView extends ItemView {
   }
 
   private touchDropTargetAt(clientX: number, clientY: number, payload: DragPayload): HTMLElement | null {
-    const hit = document.elementFromPoint(clientX, clientY);
+    const hit = activeDocument.elementFromPoint(clientX, clientY);
     if (!(hit instanceof HTMLElement)) {
       return null;
     }

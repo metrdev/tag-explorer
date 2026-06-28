@@ -113,6 +113,10 @@
   opacity: 0.5;
 }
 
+.tag-explorer-row.is-touch-active {
+  touch-action: pan-y;
+}
+
 .tag-explorer-touch-drag-preview {
   position: fixed;
   z-index: 1000;
