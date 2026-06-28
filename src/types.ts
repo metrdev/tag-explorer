@@ -18,6 +18,7 @@ export interface TagExplorerSettings {
   persistExpandedTags: boolean;
   expandedTags: string[];
   tagFolders: string[];
+  excludedNotePaths: string[];
   experimentalOpenSearch: boolean;
 }
 
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: TagExplorerSettings = {
   persistExpandedTags: false,
   expandedTags: [],
   tagFolders: [],
+  excludedNotePaths: [],
   experimentalOpenSearch: false,
 };
 

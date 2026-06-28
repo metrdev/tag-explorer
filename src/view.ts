@@ -930,6 +930,18 @@ export class TagExplorerView extends ItemView {
           }
         });
     });
+    menu.addItem((item) => {
+      item
+        .setTitle(t("menu.excludeNote"))
+        .setIcon("eye-off")
+        .onClick(() => {
+          void this.plugin.excludeNotes(
+            selectedNotes
+              .filter((payload) => payload.type === "note" || payload.type === "untagged-note")
+              .map((payload) => payload.filePath),
+          );
+        });
+    });
     menu.addSeparator();
     menu.addItem((item) => {
       item

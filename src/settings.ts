@@ -29,6 +29,7 @@ export function normalizeSettingsData(loaded: unknown): TagExplorerSettings {
       : DEFAULT_SETTINGS.showUntaggedSection,
     expandedTags: stringArray(raw.expandedTags),
     tagFolders: normalizeTags(tagFolderInput),
+    excludedNotePaths: normalizeNotePaths(stringArray(raw.excludedNotePaths)),
   };
 }
 
@@ -38,4 +39,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export function normalizeNotePaths(paths: string[]): string[] {
+  const normalized = new Set<string>();
+  for (const path of paths) {
+    const clean = path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    if (clean.length > 0) {
+      normalized.add(clean);
+    }
+  }
+  return Array.from(normalized).sort((left, right) => left.localeCompare(right, undefined, {
+    sensitivity: "base",
+    numeric: true,
+  }));
 }

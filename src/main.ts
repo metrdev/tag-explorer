@@ -4,6 +4,7 @@ import {
   getAllTags,
   Notice,
   Plugin,
+  TAbstractFile,
   TFile,
   type CachedMetadata,
   type TagCache,
@@ -42,7 +43,7 @@ import {
   type TagOperationEntry,
   type TagOperationPlan,
 } from "./tag-operations";
-import { normalizeSettingsData } from "./settings";
+import { normalizeNotePaths, normalizeSettingsData } from "./settings";
 import { TagExplorerView } from "./view";
 import {
   DEFAULT_SETTINGS,
@@ -99,7 +100,10 @@ export default class TagExplorerPlugin extends Plugin {
     this.registerEvent(this.app.metadataCache.on("deleted", () => this.queueRebuild()));
     this.registerEvent(this.app.vault.on("create", () => this.queueRebuild()));
     this.registerEvent(this.app.vault.on("delete", () => this.queueRebuild()));
-    this.registerEvent(this.app.vault.on("rename", () => this.queueRebuild()));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      void this.handleVaultRename(file, oldPath);
+      this.queueRebuild();
+    }));
     this.registerEvent(this.app.vault.on("modify", () => this.queueRebuild()));
   }
 
@@ -119,6 +123,9 @@ export default class TagExplorerPlugin extends Plugin {
     const notes: IndexedNote[] = [];
 
     for (const file of this.app.vault.getMarkdownFiles()) {
+      if (this.isNoteExcluded(file.path)) {
+        continue;
+      }
       const cache = this.app.metadataCache.getFileCache(file);
       const tags = this.tagsForFile(cache);
       if (tags.length === 0) {
@@ -142,6 +149,9 @@ export default class TagExplorerPlugin extends Plugin {
     const notes: IndexedNote[] = [];
 
     for (const file of this.app.vault.getMarkdownFiles()) {
+      if (this.isNoteExcluded(file.path)) {
+        continue;
+      }
       const cache = this.app.metadataCache.getFileCache(file);
       const tags = this.tagsForFile(cache);
       if (tags.length > 0) {
@@ -192,6 +202,7 @@ export default class TagExplorerPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     this.settings.expandedTags = this.settings.persistExpandedTags ? Array.from(this.expandedTags).sort() : [];
     this.settings.tagFolders = normalizeTags(this.settings.tagFolders);
+    this.settings.excludedNotePaths = normalizeNotePaths(this.settings.excludedNotePaths);
     await this.saveData(this.settings);
   }
 
@@ -267,6 +278,22 @@ export default class TagExplorerPlugin extends Plugin {
     return this.lastOperation !== null;
   }
 
+  isNoteExcluded(filePath: string): boolean {
+    return this.settings.excludedNotePaths.includes(filePath);
+  }
+
+  async excludeNotes(filePaths: string[]): Promise<void> {
+    const next = normalizeNotePaths([...this.settings.excludedNotePaths, ...filePaths]);
+    const addedCount = next.length - this.settings.excludedNotePaths.length;
+    if (addedCount === 0) {
+      new Notice(t("notice.notesAlreadyExcluded"));
+      return;
+    }
+    this.settings.excludedNotePaths = next;
+    await this.saveSettingsAndRefresh();
+    new Notice(t("notice.notesExcluded", { count: addedCount }));
+  }
+
   getNoteFiles(filePaths: string[]): TFile[] {
     const files: TFile[] = [];
     const seen = new Set<string>();
@@ -313,6 +340,16 @@ export default class TagExplorerPlugin extends Plugin {
       new Notice(t("notice.renameFailed"));
       return false;
     }
+  }
+
+  private async handleVaultRename(file: TAbstractFile, oldPath: string): Promise<void> {
+    if (!(file instanceof TFile) || oldPath === file.path || !this.isNoteExcluded(oldPath)) {
+      return;
+    }
+    this.settings.excludedNotePaths = normalizeNotePaths(
+      this.settings.excludedNotePaths.map((path) => path === oldPath ? file.path : path),
+    );
+    await this.saveSettings();
   }
 
   async deleteNotes(filePaths: string[]): Promise<string[]> {

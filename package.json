@@ -1,6 +1,6 @@
 {
   "name": "tag-explorer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A tag-based file explorer with tag-folders, drag-and-drop, and untagged notes.",
   "main": "main.js",
   "scripts": {

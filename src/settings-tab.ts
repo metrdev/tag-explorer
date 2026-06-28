@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import { t } from "./i18n";
+import { normalizeNotePaths } from "./settings";
 import type TagExplorerPlugin from "./main";
 import type {
   CounterMode,
@@ -111,6 +112,20 @@ export class TagExplorerSettingTab extends PluginSettingTab {
             this.plugin.settings.showUntaggedSection = value;
             await this.plugin.saveSettingsAndRefresh();
           });
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.excludedNotes.name"))
+      .setDesc(t("settings.excludedNotes.desc"))
+      .addTextArea((text) => {
+        text
+          .setPlaceholder(t("settings.excludedNotes.placeholder"))
+          .setValue(this.plugin.settings.excludedNotePaths.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.excludedNotePaths = normalizeNotePaths(value.split(/\r?\n/));
+            await this.plugin.saveSettingsAndRefresh();
+          });
+        text.inputEl.rows = 5;
       });
 
     new Setting(containerEl)
