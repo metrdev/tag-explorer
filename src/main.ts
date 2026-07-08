@@ -3,6 +3,7 @@ import {
   getLanguage,
   getAllTags,
   Notice,
+  normalizePath,
   Plugin,
   TAbstractFile,
   TFile,
@@ -14,7 +15,7 @@ import { confirmVariantForAction } from "./confirm-variant";
 import { TAG_EXPLORER_ICON_ID, TAG_EXPLORER_ICON_SVG } from "./icons";
 import { chooseParentTag, confirmDeleteNotes, confirmTagOperation, promptForText } from "./modals";
 import { t, setLanguage } from "./i18n";
-import { buildRenameNoteTarget } from "./note-actions";
+import { buildDefaultNewNotePath, buildRenameNoteTarget } from "./note-actions";
 import { shouldConfirmOperation, type OperationOptions } from "./operation-confirmation";
 import { TagExplorerSettingTab } from "./settings-tab";
 import {
@@ -64,6 +65,14 @@ interface OperationStats {
   changedFiles: number;
   propertyCount: number;
   inlineCount: number;
+}
+
+interface CommandExecutor {
+  executeCommandById(id: string): boolean;
+}
+
+interface AppWithCommands {
+  commands?: CommandExecutor;
 }
 
 export default class TagExplorerPlugin extends Plugin {
@@ -484,6 +493,25 @@ export default class TagExplorerPlugin extends Plugin {
 
     this.settings.tagFolders = normalizeTags([...this.settings.tagFolders, targetPath]);
     await this.saveSettingsAndRefresh();
+  }
+
+  async createNoteInTagFolder(tagPath: string): Promise<void> {
+    const parent = this.app.fileManager.getNewFileParent("", "Untitled.md");
+    const targetPath = buildDefaultNewNotePath(
+      parent.path,
+      (path) => this.app.vault.getAbstractFileByPath(path) !== null,
+    );
+
+    try {
+      const file = await this.app.vault.create(normalizePath(targetPath), "");
+      await this.applyPropertyTagChange(file, tagPath, "add");
+      await this.app.workspace.getLeaf(false).openFile(file);
+      this.editActiveFileTitle();
+      this.queueRebuild();
+    } catch (error) {
+      console.error("Tag Explorer could not create note", error);
+      new Notice(t("notice.createNoteFailed"));
+    }
   }
 
   async deleteTagFolder(tagPath: string): Promise<void> {
@@ -981,6 +1009,12 @@ export default class TagExplorerPlugin extends Plugin {
       }
     });
     return changed;
+  }
+
+  private editActiveFileTitle(): void {
+    window.setTimeout(() => {
+      (this.app as AppWithCommands).commands?.executeCommandById("workspace:edit-file-title");
+    }, 0);
   }
 
   private remapExpandedTags(oldPath: string, newPath: string): void {

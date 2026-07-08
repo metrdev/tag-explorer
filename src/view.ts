@@ -761,6 +761,12 @@ export class TagExplorerView extends ItemView {
 
     menu.addItem((item) => {
       item
+        .setTitle(t("menu.createNote"))
+        .setIcon("file-plus")
+        .onClick(() => this.plugin.createNoteInTagFolder(tagPath));
+    });
+    menu.addItem((item) => {
+      item
         .setTitle(t("menu.createChildTagFolder"))
         .setIcon("folder-plus")
         .onClick(() => this.plugin.createTagFolder(tagPath));

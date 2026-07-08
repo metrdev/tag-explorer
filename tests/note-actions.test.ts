@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
+  buildDefaultNewNotePath,
   buildRenameNoteTarget,
   noteKeyboardAction,
   notePayloadsFromSelection,
@@ -8,6 +9,24 @@ import {
   shouldStartRenameNote,
 } from "../src/note-actions";
 import type { SingleDragPayload } from "../src/drag-payload";
+
+describe("default new note path", () => {
+  it("creates Untitled in the root folder", () => {
+    assert.equal(buildDefaultNewNotePath("/", () => false), "Untitled.md");
+    assert.equal(buildDefaultNewNotePath("", () => false), "Untitled.md");
+  });
+
+  it("creates Untitled in the given default folder", () => {
+    assert.equal(buildDefaultNewNotePath("Notes", () => false), "Notes/Untitled.md");
+  });
+
+  it("increments the name when Untitled already exists", () => {
+    assert.equal(
+      buildDefaultNewNotePath("Notes", (path) => path === "Notes/Untitled.md" || path === "Notes/Untitled 1.md"),
+      "Notes/Untitled 2.md",
+    );
+  });
+});
 
 describe("note rename target", () => {
   it("builds a same-folder markdown path and preserves md extension", () => {

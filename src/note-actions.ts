@@ -6,6 +6,23 @@ export interface RenameNoteTargetResult {
   newPath?: string;
 }
 
+export function buildDefaultNewNotePath(
+  parentFolderPath: string,
+  exists: (path: string) => boolean,
+): string {
+  const parent = parentFolderPath === "/" ? "" : parentFolderPath.replace(/\/+$/, "");
+  let index = 0;
+
+  while (true) {
+    const basename = index === 0 ? "Untitled" : `Untitled ${index}`;
+    const path = parent ? `${parent}/${basename}.md` : `${basename}.md`;
+    if (!exists(path)) {
+      return path;
+    }
+    index += 1;
+  }
+}
+
 export function buildRenameNoteTarget(
   oldPath: string,
   inputBaseName: string,
