@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
@@ -22,20 +23,63 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Read release metadata
+        id: metadata
+        shell: bash
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          name=$(node -p "require('./manifest.json').name")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches manifest version
+        if: github.event_name == 'push'
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if [[ "$REF_NAME" != "$RELEASE_VERSION" ]]; then
+            echo "Tag $REF_NAME does not match manifest version $RELEASE_VERSION."
+            exit 1
+          fi
+
+      - name: Check existing release
+        id: existing_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $RELEASE_VERSION already exists. Skipping publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
+        if: steps.existing_release.outputs.exists != 'true'
         run: npm ci
 
       - name: Verify release metadata
-        run: node scripts/bump-version.mjs "$GITHUB_REF_NAME" --check
+        if: steps.existing_release.outputs.exists != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: node scripts/bump-version.mjs "$RELEASE_VERSION" --check
 
       - name: Run release checks
+        if: steps.existing_release.outputs.exists != 'true'
         run: npm run release:check
 
       - name: Create GitHub release
+        if: steps.existing_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+          PLUGIN_NAME: ${{ steps.metadata.outputs.name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$RELEASE_VERSION" \
             main.js manifest.json styles.css \
-            --title "Tag Explorer $GITHUB_REF_NAME" \
-            --notes "Release assets for Tag Explorer $GITHUB_REF_NAME."
+            --title "$PLUGIN_NAME $RELEASE_VERSION" \
+            --notes "Release assets for $PLUGIN_NAME $RELEASE_VERSION."
